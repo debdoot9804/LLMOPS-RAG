@@ -14,3 +14,4 @@ wheels/
 uv.lock
 python-version
 pyproject.toml
+RAG.ipynb

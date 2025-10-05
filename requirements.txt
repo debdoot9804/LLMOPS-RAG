@@ -4,3 +4,4 @@ uvicorn
 langchain
 openai
 ipykernel
+langchain-openai

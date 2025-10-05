@@ -1,0 +1,8 @@
+embedding_model:
+  provider: "openai"
+  model_name: "text-embedding-3-large"
+
+llm:
+  provider: "openai"
+  model_name: "gpt-4o-mini"
+  temperature: 0.0 
