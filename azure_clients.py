@@ -20,11 +20,31 @@ def create_azure_openai_client():
     Create and return an Azure OpenAI client.
     """
     client = AzureOpenAI(
-        api_key=AZURE_API_KEY,
-        api_version=AZURE_API_VERSION,
-        azure_endpoint=AZURE_ENDPOINT
+        api_key=OPENAI_API_KEY,
+        api_version=API_VERSION,
+        azure_endpoint=OPENAI_ENDPOINT
     )
     return client
+
+
+def get_embedding_client():
+    """
+    Create and return an Azure OpenAI embeddings client configured for LangChain.
+    
+    Returns:
+        AzureOpenAIEmbeddings: A configured embedding client
+    """
+    from langchain_openai import AzureOpenAIEmbeddings
+    
+    embedding_client = AzureOpenAIEmbeddings(
+        azure_endpoint=OPENAI_ENDPOINT,
+        api_key=OPENAI_API_KEY,
+        api_version=API_VERSION,
+        deployment=OPENAI_EMBED_DEPLOYMENT_NAME,
+        model=OPENAI_EMBED_DEPLOYMENT_NAME,
+    )
+    
+    return embedding_client
 
 
 def get_chat_completion(client, messages, temperature=0.5):
@@ -41,7 +61,7 @@ def get_chat_completion(client, messages, temperature=0.5):
     """
     try:
         response = client.chat.completions.create(
-            model=CHAT_MODEL,
+            model=OPENAI_CHAT_DEPLOYMENT_NAME,
             messages=messages,
             temperature=temperature
         )
@@ -70,7 +90,7 @@ def get_embeddings(client, texts):
         List of embedding vectors
     """
     response = client.embeddings.create(
-        model=EMB_MODEL,
+        model=OPENAI_EMBED_DEPLOYMENT_NAME,
         input=texts
     )
     return [item.embedding for item in response.data]

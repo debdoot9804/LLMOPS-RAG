@@ -1,38 +1,47 @@
 import os
 import logging
 from datetime import datetime
-import structlog
 
-class Logger:
-    def__init__(self,log_dir="logs"):
-    self.logs_dir=os.path.join(os.getcwd(),log_dir)
-    os.makedirs(self.logs_dir,exist_ok=True)
-
-    log_file=f"{datetime.now().strftime('%d-%m-%Y-%H-%M-%S')}.log"
-    self.log_path=os.path.join(self.logs_dir,log_file)
-
-    def get_logger(self,name=__file__):
-        logger_name=os.path.basename(name)
-
-        logging.basicConfig(
-            format="%(message)s",
-            level=logging.INFO,
-            handlers=[
-                logging.FileHandler(self.log_path),
-                logging.StreamHandler()
-            ]
-        )   
-        structlog.configure(
-            processors=[
-                structlog.processors.TimeStamper(fmt="iso"),
-                structlog.stdlib.add_log_level,
-                structlog.processors.StackInfoRenderer(),
-                structlog.processors.format_exc_info,
-                structlog.processors.JSONRenderer()
-            ],
-            logger_factory=structlog.stdlib.LoggerFactory(),
-            wrapper_class=structlog.stdlib.BoundLogger,
-            cache_logger_on_first_use=True
-        )
-
-        return structlog.get_logger(logger_name)
+def get_logger(file_path=__file__):
+    """
+    Get a basic logger for the given file path.
+    
+    Args:
+        file_path: The path of the file requesting the logger
+        
+    Returns:
+        A configured logger instance
+    """
+    # Create logs directory if it doesn't exist
+    logs_dir = os.path.join(os.getcwd(), "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Create log file with timestamp
+    log_file = f"{datetime.now().strftime('%d-%m-%Y-%H-%M-%S')}.log"
+    log_path = os.path.join(logs_dir, log_file)
+    
+    # Get logger name from file name
+    logger_name = os.path.basename(file_path)
+    
+    # Configure logger
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    
+    # Create a file handler
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.INFO)
+    
+    # Create a console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    # Create a formatter and add it to the handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # Add the handlers to the logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger

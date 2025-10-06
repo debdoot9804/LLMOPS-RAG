@@ -5,3 +5,5 @@ langchain
 openai
 ipykernel
 langchain-openai
+langchain-community
+pypdf
