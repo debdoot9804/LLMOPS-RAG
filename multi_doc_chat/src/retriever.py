@@ -1,0 +1,321 @@
+"""
+Simplified Document Retriever Module
+
+This module provides a clean interface for retrieving and querying documents
+using vector embeddings and RAG (Retrieval Augmented Generation).
+It maintains session-specific document retrieval for multi-user applications.
+"""
+
+import os
+import sys
+import logging
+from typing import List, Dict, Any, Optional, Tuple
+import uuid
+
+# Add project root to path for imports
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+
+# LangChain imports
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+# Azure OpenAI
+from azure_clients import get_embedding_client, create_azure_openai_client
+from langchain_openai import AzureChatOpenAI
+
+# Custom modules
+from multi_doc_chat.src.ingestion import DocumentIngestionPipeline
+from multi_doc_chat.logger.logger import get_logger
+from multi_doc_chat.prompts.prompt_library import (
+    RAG_QA_PROMPT,
+    DOCUMENT_SUMMARIZATION_PROMPT,
+    REASONING_QA_PROMPT,
+    INFORMATION_EXTRACTION_PROMPT
+)
+
+# Initialize logger
+logger = get_logger(__file__)
+
+
+class DocumentRetriever:
+    """
+    A simplified retriever for accessing and querying document embeddings in a vector store.
+    Maintains session-specific document retrieval and manages the RAG pipeline.
+    """
+    
+    def __init__(
+        self,
+        vector_store_path: str = "vector_store",
+        session_id: str = None,
+        top_k: int = 4,
+        score_threshold: float = 0.3
+    ):
+        """
+        Initialize the document retriever.
+        
+        Args:
+            vector_store_path: Base path to the vector store directory
+            session_id: Unique identifier for the user session
+            top_k: Number of documents to retrieve for each query
+            score_threshold: Minimum similarity score for retrieved documents
+        """
+        # Set up session handling
+        self.session_id = session_id or str(uuid.uuid4())[:12]
+        
+        # Determine vector store path based on session
+        if session_id:
+            self.vector_store_path = os.path.join(vector_store_path, f"session_{self.session_id}")
+        else:
+            self.vector_store_path = vector_store_path
+        
+        # Set up retrieval parameters
+        self.top_k = top_k
+        self.score_threshold = score_threshold
+        
+        # Initialize embedding model
+        self.embedding_model = get_embedding_client()
+        
+        # Try to load the vector store
+        self.vector_store = self._load_vector_store()
+        
+        # Initialize Azure OpenAI client for LLM
+        self.llm = self._initialize_llm()
+        
+        logger.info(f"Initialized document retriever with session_id={self.session_id}, top_k={self.top_k}")
+    
+    def _load_vector_store(self) -> Optional[FAISS]:
+        """
+        Load the vector store from disk.
+        
+        Returns:
+            FAISS vector store if it exists, None otherwise
+        """
+        try:
+            if os.path.exists(self.vector_store_path):
+                vector_store = FAISS.load_local(
+                    self.vector_store_path, 
+                    self.embedding_model,
+                    allow_dangerous_deserialization=True
+                )
+                logger.info(f"Loaded vector store from {self.vector_store_path}")
+                return vector_store
+            else:
+                logger.warning(f"Vector store not found at {self.vector_store_path}")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading vector store: {e}")
+            return None
+    
+    def _initialize_llm(self) -> AzureChatOpenAI:
+        """
+        Initialize the LLM for generating responses.
+        
+        Returns:
+            Initialized LLM instance
+        """
+        try:
+            # Using the Azure OpenAI client
+            llm = AzureChatOpenAI(
+                azure_endpoint=os.getenv("OPENAI_ENDPOINT"),
+                api_key=os.getenv("OPENAI_API_KEY"),
+                api_version=os.getenv("API_VERSION"),
+                deployment_name=os.getenv("OPENAI_CHAT_DEPLOYMENT_NAME"),
+                temperature=0.0
+            )
+            
+            logger.info(f"Initialized LLM with model {os.getenv('OPENAI_CHAT_DEPLOYMENT_NAME')}")
+            return llm
+            
+        except Exception as e:
+            logger.error(f"Error initializing LLM: {e}")
+            raise
+    
+    def get_relevant_documents(self, query: str) -> List[Document]:
+        """
+        Retrieve documents relevant to the query.
+        
+        Args:
+            query: The query string
+            
+        Returns:
+            List of relevant document chunks
+        """
+        if self.vector_store is None:
+            logger.warning("No vector store available. Please ingest documents first.")
+            return []
+        
+        try:
+            docs_with_scores = self.vector_store.similarity_search_with_score(query, k=self.top_k)
+            
+            # Filter by score threshold and extract just the documents
+            filtered_docs = []
+            for doc, score in docs_with_scores:
+                # Convert the score to similarity (if using cosine distance)
+                similarity = 1.0 - (score / 2.0)
+                
+                if similarity >= self.score_threshold:
+                    # Add similarity score to metadata
+                    doc.metadata["similarity_score"] = similarity
+                    filtered_docs.append(doc)
+            
+            logger.info(f"Retrieved {len(filtered_docs)} relevant documents for query")
+            return filtered_docs
+            
+        except Exception as e:
+            logger.error(f"Error retrieving documents: {e}")
+            return []
+    
+    def _format_documents(self, docs: List[Document]) -> str:
+        """
+        Format a list of documents into a single string.
+        
+        Args:
+            docs: List of Document objects
+            
+        Returns:
+            Formatted string containing document content
+        """
+        if not docs:
+            return "No relevant documents found."
+        
+        formatted_docs = []
+        for i, doc in enumerate(docs, 1):
+            content = doc.page_content
+            metadata = doc.metadata
+            source = metadata.get("source", "Unknown")
+            page = metadata.get("page", "")
+            score = metadata.get("similarity_score", 0.0)
+            
+            header = f"Document {i} (Source: {source}, Page: {page}, Relevance: {score:.2f})"
+            formatted_docs.append(f"{header}\n{content}\n")
+        
+        return "\n\n".join(formatted_docs)
+    
+    def query_documents(self, query: str, prompt_type: str = "standard") -> Tuple[str, List[Document]]:
+        """
+        A simple interface for querying documents.
+        
+        Args:
+            query: The query string
+            prompt_type: Type of prompt to use ("standard", "reasoning", "summary", "extraction")
+            
+        Returns:
+            A tuple containing (response_text, list_of_relevant_documents)
+        """
+        docs = self.get_relevant_documents(query)
+        
+        if not docs:
+            return "No relevant documents found to answer your query.", []
+        
+        # Format the context from documents
+        context = self._format_documents(docs)
+        
+        # Select the appropriate prompt based on the prompt type
+        if prompt_type == "reasoning":
+            prompt = REASONING_QA_PROMPT
+        elif prompt_type == "summary":
+            prompt = DOCUMENT_SUMMARIZATION_PROMPT
+        elif prompt_type == "extraction":
+            prompt = INFORMATION_EXTRACTION_PROMPT
+        else:
+            # Default to standard prompt
+            prompt = RAG_QA_PROMPT
+        
+        try:
+            # Create a simple chain
+            chain = prompt | self.llm | StrOutputParser()
+            
+            # Prepare inputs based on prompt type
+            inputs = {
+                "context": context,
+                "chat_history": []  # Empty chat history by default
+            }
+            
+            # Handle different variable names in different prompts
+            if prompt_type == "extraction":
+                inputs["extraction_query"] = query
+            else:
+                inputs["question"] = query
+            
+            # Run the chain
+            response = chain.invoke(inputs)
+            
+            return response, docs
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return f"Error: {str(e)}", docs
+
+
+# Example usage
+if __name__ == "__main__":
+    # Get data directory
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+    vector_store_path = os.path.join(data_dir, "vector_store")
+    
+    # Create a session ID
+    session_id = str(uuid.uuid4())[:12]
+    print(f"Using session ID: {session_id}")
+    
+    # Check if we need to ingest documents first
+    if not os.path.exists(os.path.join(vector_store_path, f"session_{session_id}")):
+        print("No vector store found for this session. Ingesting documents first...")
+        
+        # Define paths to documents
+        file_paths = [
+            os.path.join(data_dir, "Mindtree_offer.pdf"),
+            # Add more file paths as needed
+        ]
+        
+        # Create the ingestion pipeline with the same session ID
+        ingestion_pipeline = DocumentIngestionPipeline(
+            chunk_size=2000,
+            chunk_overlap=400,
+            vector_store_path=vector_store_path,
+            session_id=session_id
+        )
+        
+        # Process documents
+        ingestion_pipeline.process_documents(
+            file_paths=file_paths,
+            metadata={"source": "initial_ingestion", "date": "2025-10-09"}
+        )
+    
+    # Create and use the retriever with the same session ID
+    retriever = DocumentRetriever(
+        vector_store_path=vector_store_path,
+        session_id=session_id,
+        top_k=3
+    )
+    
+    # Test different query types
+    test_scenarios = [
+        {"query": "What is the compensation package?", "prompt_type": "standard"},
+        {"query": "What are the benefits provided?", "prompt_type": "reasoning"},
+        {"query": "Summarize the key details of the offer", "prompt_type": "summary"},
+        {"query": "Extract information about notice period and joining date", "prompt_type": "extraction"}
+    ]
+    
+    for scenario in test_scenarios:
+        query = scenario["query"]
+        prompt_type = scenario["prompt_type"]
+        
+        print(f"\n\n{'='*50}")
+        print(f"QUERY: {query}")
+        print(f"PROMPT TYPE: {prompt_type}")
+        print(f"{'='*50}")
+        
+        response, docs = retriever.query_documents(query, prompt_type=prompt_type)
+        
+        print("\nRESPONSE:")
+        print("-" * 40)
+        print(response)
+        
+        print("\nRELEVANT DOCUMENTS:")
+        print("-" * 40)
+        for i, doc in enumerate(docs, 1):
+            print(f"Document {i}:")
+            print(f"Content: {doc.page_content[:150]}..." if len(doc.page_content) > 150 else doc.page_content)
+            print(f"Metadata: {doc.metadata}")
+            print("-" * 30)

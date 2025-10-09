@@ -7,3 +7,5 @@ ipykernel
 langchain-openai
 langchain-community
 pypdf
+pyyaml
+faiss-cpu

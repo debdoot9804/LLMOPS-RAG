@@ -25,6 +25,7 @@ class DocumentIngestionPipeline:
         chunk_size: int = 600,
         chunk_overlap: int = 100,
         vector_store_path: str = "vector_store",
+        session_id: str = None,
     ):
         """
         Initialize the document ingestion pipeline.
@@ -33,10 +34,18 @@ class DocumentIngestionPipeline:
             chunk_size: Size of text chunks for splitting documents
             chunk_overlap: Overlap between consecutive chunks
             vector_store_path: Path to save the vector store
+            session_id: Unique identifier for the user session
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.vector_store_path = vector_store_path
+        self.session_id = session_id or self._generate_session_id()
+        
+        # Include session_id in vector store path if provided
+        if session_id:
+            self.vector_store_path = os.path.join(vector_store_path, f"session_{self.session_id}")
+        else:
+            self.vector_store_path = vector_store_path
+            
         self.embedding_model = get_embedding_client()
         
         # Initialize the text splitter
@@ -47,7 +56,22 @@ class DocumentIngestionPipeline:
             is_separator_regex=False,
         )
         
-        logger.info(f"Initialized document ingestion pipeline with chunk_size={chunk_size}, chunk_overlap={chunk_overlap}")
+        logger.info(f"Initialized document ingestion pipeline with chunk_size={chunk_size}, chunk_overlap={chunk_overlap}, session_id={self.session_id}")
+    
+    def _generate_session_id(self) -> str:
+        """
+        Generate a unique session ID using timestamp and random characters.
+        
+        Returns:
+            A unique session ID string
+        """
+        import uuid
+        import datetime
+        
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        
+        return f"{timestamp}_{unique_id}"
 
     def process_documents(self, file_paths: List[str], metadata: Optional[Dict[str, Any]] = None) -> FAISS:
         """
@@ -60,7 +84,7 @@ class DocumentIngestionPipeline:
         Returns:
             FAISS vector store containing the processed documents
         """
-        logger.info(f"Starting document ingestion for {len(file_paths)} files")
+        logger.info(f"Starting document ingestion for {len(file_paths)} files with session_id={self.session_id}")
         
         # Step 1: Load documents
         try:
@@ -70,10 +94,16 @@ class DocumentIngestionPipeline:
             logger.error(f"Error loading documents: {e}")
             raise
         
-        # Add additional metadata if provided
-        if metadata:
-            for doc in documents:
-                doc.metadata.update(metadata)
+        # Initialize metadata if not provided
+        if metadata is None:
+            metadata = {}
+        
+        # Add session ID to metadata
+        metadata["session_id"] = self.session_id
+        
+        # Add additional metadata to documents
+        for doc in documents:
+            doc.metadata.update(metadata)
         
         # Step 2: Split documents into chunks
         try:
@@ -117,14 +147,18 @@ class DocumentIngestionPipeline:
         """
         try:
             if os.path.exists(self.vector_store_path):
-                vector_store = FAISS.load_local(self.vector_store_path, self.embedding_model)
-                logger.info(f"Loaded vector store from {self.vector_store_path}")
+                vector_store = FAISS.load_local(
+                    self.vector_store_path, 
+                    self.embedding_model, 
+                    allow_dangerous_deserialization=True
+                )
+                logger.info(f"Loaded vector store from {self.vector_store_path} for session_id={self.session_id}")
                 return vector_store
             else:
-                logger.warning(f"Vector store not found at {self.vector_store_path}")
+                logger.warning(f"Vector store not found at {self.vector_store_path} for session_id={self.session_id}")
                 return None
         except Exception as e:
-            logger.error(f"Error loading vector store: {e}")
+            logger.error(f"Error loading vector store for session_id={self.session_id}: {e}")
             return None
     
     def add_documents(self, file_paths: List[str], metadata: Optional[Dict[str, Any]] = None) -> Optional[FAISS]:
@@ -147,12 +181,18 @@ class DocumentIngestionPipeline:
         # Load and process new documents
         try:
             documents = load_documents(file_paths)
-            logger.info(f"Loaded {len(documents)} new documents successfully")
+            logger.info(f"Loaded {len(documents)} new documents successfully for session_id={self.session_id}")
             
-            # Add additional metadata if provided
-            if metadata:
-                for doc in documents:
-                    doc.metadata.update(metadata)
+            # Initialize metadata if not provided
+            if metadata is None:
+                metadata = {}
+            
+            # Add session ID to metadata
+            metadata["session_id"] = self.session_id
+            
+            # Add additional metadata to documents
+            for doc in documents:
+                doc.metadata.update(metadata)
             
             # Split documents into chunks
             chunks = self.text_splitter.split_documents(documents)
@@ -182,22 +222,30 @@ if __name__ == "__main__":
         # Add more file paths as needed
     ]
     
-    # Create and use the ingestion pipeline
+    # Create a unique session ID for this example run
+    # In a real application, you would get this from a user's session
+    import uuid
+    session_id = str(uuid.uuid4())[:12]
+    print(f"Using session ID: {session_id}")
+    
+    # Create and use the ingestion pipeline with a session ID
     pipeline = DocumentIngestionPipeline(
         chunk_size=2000,
         chunk_overlap=400,
-        vector_store_path=os.path.join(data_dir, "vector_store")
+        vector_store_path=os.path.join(data_dir, "vector_store"),
+        session_id=session_id
     )
     
     # Process documents and create vector store
     vector_store = pipeline.process_documents(
         file_paths=file_paths,
-        metadata={"source": "initial_ingestion", "date": "2025-10-06"}
+        metadata={"source": "initial_ingestion", "date": "2025-10-09"}
     )
     
     # Verify vector store creation
     if vector_store:
         print(f"Successfully created vector store with {len(vector_store.index_to_docstore_id)} vectors")
+        print(f"Vector store saved to: {pipeline.vector_store_path}")
         
         # Test retrieval functionality
         test_query = "What is the compensation package?"
@@ -210,5 +258,8 @@ if __name__ == "__main__":
             print(f"\nDocument {i}:")
             print("-" * 40)
             print(doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content)
-            print(f"Source: {doc.metadata}")
+            print(f"Metadata:")
+            for key, value in doc.metadata.items():
+                print(f"  {key}: {value}")
+            print(f"Session ID: {doc.metadata.get('session_id', 'Not available')}")
             print("-" * 40)
