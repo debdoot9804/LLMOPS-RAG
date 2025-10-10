@@ -9,3 +9,5 @@ langchain-community
 pypdf
 pyyaml
 faiss-cpu
+pandas
+langsmith

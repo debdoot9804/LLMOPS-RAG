@@ -20,6 +20,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 
 # Azure OpenAI
 from azure_clients import get_embedding_client, create_azure_openai_client
@@ -193,13 +194,19 @@ class DocumentRetriever:
         
         return "\n\n".join(formatted_docs)
     
-    def query_documents(self, query: str, prompt_type: str = "standard") -> Tuple[str, List[Document]]:
+    def query_documents(
+        self, 
+        query: str, 
+        prompt_type: str = "standard",
+        chat_history: Optional[List[Tuple[str, str]]] = None
+    ) -> Tuple[str, List[Document]]:
         """
-        A simple interface for querying documents.
+        A simple interface for querying documents using LangChain LCEL (LangChain Expression Language).
         
         Args:
             query: The query string
             prompt_type: Type of prompt to use ("standard", "reasoning", "summary", "extraction")
+            chat_history: Optional list of (human_message, ai_message) tuples for conversation context
             
         Returns:
             A tuple containing (response_text, list_of_relevant_documents)
@@ -209,40 +216,59 @@ class DocumentRetriever:
         if not docs:
             return "No relevant documents found to answer your query.", []
         
-        # Format the context from documents
-        context = self._format_documents(docs)
-        
         # Select the appropriate prompt based on the prompt type
-        if prompt_type == "reasoning":
-            prompt = REASONING_QA_PROMPT
-        elif prompt_type == "summary":
-            prompt = DOCUMENT_SUMMARIZATION_PROMPT
-        elif prompt_type == "extraction":
-            prompt = INFORMATION_EXTRACTION_PROMPT
-        else:
-            # Default to standard prompt
-            prompt = RAG_QA_PROMPT
+        prompt_map = {
+            "reasoning": REASONING_QA_PROMPT,
+            "summary": DOCUMENT_SUMMARIZATION_PROMPT,
+            "extraction": INFORMATION_EXTRACTION_PROMPT,
+            "standard": RAG_QA_PROMPT
+        }
+        prompt = prompt_map.get(prompt_type, RAG_QA_PROMPT)
         
         try:
-            # Create a simple chain
-            chain = prompt | self.llm | StrOutputParser()
+            # Format chat history for the prompt
+            formatted_history = []
+            if chat_history:
+                for human_msg, ai_msg in chat_history:
+                    formatted_history.extend([
+                        ("human", human_msg),
+                        ("assistant", ai_msg)
+                    ])
             
-            # Prepare inputs based on prompt type
-            inputs = {
-                "context": context,
-                "chat_history": []  # Empty chat history by default
-            }
+            # Create chain using RunnableParallel and RunnablePassthrough
             
-            # Handle different variable names in different prompts
             if prompt_type == "extraction":
-                inputs["extraction_query"] = query
+                # Extraction prompt uses different variable name
+                chain = (
+                    RunnableParallel(
+                        context=lambda x: self._format_documents(x["docs"]),
+                        extraction_query=RunnablePassthrough()
+                    )
+                    | prompt
+                    | self.llm
+                    | StrOutputParser()
+                )
+                response = chain.invoke({"docs": docs, "extraction_query": query})
             else:
-                inputs["question"] = query
-            
-            # Run the chain
-            response = chain.invoke(inputs)
+                # Standard, reasoning, and summary prompts
+                chain = (
+                    RunnableParallel(
+                        context=lambda x: self._format_documents(x["docs"]),
+                        question=lambda x: x["question"],
+                        chat_history=lambda x: x.get("chat_history", [])
+                    )
+                    | prompt
+                    | self.llm
+                    | StrOutputParser()
+                )
+                response = chain.invoke({
+                    "docs": docs,
+                    "question": query,
+                    "chat_history": formatted_history
+                })
             
             return response, docs
+            
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return f"Error: {str(e)}", docs
