@@ -1,6 +1,7 @@
 python-dotenv
 fastapi
 uvicorn
+Jinja2
 langchain
 openai
 ipykernel

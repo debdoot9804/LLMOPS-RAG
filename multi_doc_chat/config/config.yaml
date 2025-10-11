@@ -6,3 +6,9 @@ llm:
   provider: "openai"
   model_name: "gpt-4o-mini"
   temperature: 0.0 
+
+  retriever:
+    top_k: 5
+    search_type:"mmr"
+    fetch_k: 10
+    lambda_mult: 0.5
