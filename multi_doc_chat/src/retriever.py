@@ -118,10 +118,10 @@ class DocumentRetriever:
                 logger.info(f"Loaded vector store from {self.vector_store_path}")
                 return vector_store
             else:
-                logger.warning(f"Vector store not found at {self.vector_store_path}")
+                logger.warning("Vector store not found at %s", self.vector_store_path)
                 return None
         except Exception as e:
-            logger.error(f"Error loading vector store: {e}")
+            logger.error("Error loading vector store: %s", str(e))
             return None
     
     def _initialize_llm(self) -> AzureChatOpenAI:
@@ -141,11 +141,11 @@ class DocumentRetriever:
                 temperature=0.0
             )
             
-            logger.info(f"Initialized LLM with model {os.getenv('OPENAI_CHAT_DEPLOYMENT_NAME')}")
+            logger.info("Initialized LLM with model %s", os.getenv('OPENAI_CHAT_DEPLOYMENT_NAME'))
             return llm
             
         except Exception as e:
-            logger.error(f"Error initializing LLM: {e}")
+            logger.error("Error initializing LLM: %s", str(e))
             raise
     
     def get_relevant_documents(self, query: str) -> List[Document]:
@@ -177,7 +177,8 @@ class DocumentRetriever:
                     doc.metadata["similarity_score"] = "N/A (MMR)"
                     doc.metadata["search_type"] = "mmr"
                 
-                logger.info(f"Retrieved {len(docs)} documents using MMR (fetch_k={self.fetch_k}, lambda={self.lambda_mult})")
+                logger.info("Retrieved %d documents using MMR (fetch_k=%d, lambda=%.1f)", 
+                           len(docs), self.fetch_k, self.lambda_mult)
                 return docs
                 
             else:
@@ -196,11 +197,12 @@ class DocumentRetriever:
                         doc.metadata["search_type"] = "similarity"
                         filtered_docs.append(doc)
                 
-                logger.info(f"Retrieved {len(filtered_docs)} relevant documents using similarity search (threshold={self.score_threshold})")
+                logger.info("Retrieved %d relevant documents using similarity search (threshold=%.2f)", 
+                           len(filtered_docs), self.score_threshold)
                 return filtered_docs
             
         except Exception as e:
-            logger.error(f"Error retrieving documents: {e}")
+            logger.error("Error retrieving documents: %s", str(e))
             return []
     
     def _format_documents(self, docs: List[Document]) -> str:
@@ -218,14 +220,18 @@ class DocumentRetriever:
         
         formatted_docs = []
         for i, doc in enumerate(docs, 1):
-            content = doc.page_content
+            content = doc.page_content.replace('{', '{{').replace('}', '}}')  # Escape curly braces
             metadata = doc.metadata
-            source = metadata.get("source", "Unknown")
-            page = metadata.get("page", "")
+            source = str(metadata.get("source", "Unknown")).replace('{', '{{').replace('}', '}}')  # Escape curly braces
+            page = str(metadata.get("page", "")).replace('{', '{{').replace('}', '}}')  # Escape curly braces
             score = metadata.get("similarity_score", 0.0)
-            
-            header = f"Document {i} (Source: {source}, Page: {page}, Relevance: {score:.2f})"
-            formatted_docs.append(f"{header}\n{content}\n")
+            # Ensure score is a float for formatting
+            try:
+                score_float = float(score)
+            except (ValueError, TypeError):
+                score_float = 0.0
+            header = "Document {} (Source: {}, Page: {}, Relevance: {:.2f})".format(i, source, page, score_float)
+            formatted_docs.append("{}\n{}\n".format(header, content))
         
         return "\n\n".join(formatted_docs)
     
@@ -265,10 +271,16 @@ class DocumentRetriever:
             formatted_history = []
             if chat_history:
                 for human_msg, ai_msg in chat_history:
+                    # Escape curly braces in chat messages
+                    safe_human_msg = human_msg.replace('{', '{{').replace('}', '}}')
+                    safe_ai_msg = ai_msg.replace('{', '{{').replace('}', '}}')
                     formatted_history.extend([
-                        ("human", human_msg),
-                        ("assistant", ai_msg)
+                        ("human", safe_human_msg),
+                        ("assistant", safe_ai_msg)
                     ])
+            
+            # Escape curly braces in query
+            safe_query = query.replace('{', '{{').replace('}', '}}')
             
             # Create chain using RunnableParallel and RunnablePassthrough
             
@@ -283,7 +295,7 @@ class DocumentRetriever:
                     | self.llm
                     | StrOutputParser()
                 )
-                response = chain.invoke({"docs": docs, "extraction_query": query})
+                response = chain.invoke({"docs": docs, "extraction_query": safe_query})
             else:
                 # Standard, reasoning, and summary prompts
                 chain = (
@@ -298,15 +310,15 @@ class DocumentRetriever:
                 )
                 response = chain.invoke({
                     "docs": docs,
-                    "question": query,
+                    "question": safe_query,
                     "chat_history": formatted_history
                 })
             
             return response, docs
             
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            return f"Error: {str(e)}", docs
+            logger.error("Error generating response: %s", str(e))
+            return "Error: {}".format(str(e)), docs
 
 
 # Example usage

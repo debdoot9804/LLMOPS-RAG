@@ -90,6 +90,8 @@ class DocumentIngestionPipeline:
         try:
             documents = load_documents(file_paths)
             logger.info(f"Loaded {len(documents)} documents successfully")
+            if not documents:
+                raise ValueError("No valid documents found in the uploaded file. Please check the file format and content.")
         except Exception as e:
             logger.error(f"Error loading documents: {e}")
             raise
@@ -113,7 +115,8 @@ class DocumentIngestionPipeline:
             # Log chunk statistics
             avg_chunk_length = sum(len(chunk.page_content) for chunk in chunks) / len(chunks) if chunks else 0
             logger.info(f"Average chunk length: {avg_chunk_length:.2f} characters")
-            
+            if not chunks:
+                raise ValueError("No valid text chunks could be created from the uploaded document. Please check the file content.")
         except Exception as e:
             logger.error(f"Error splitting documents: {e}")
             raise

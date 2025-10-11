@@ -33,6 +33,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files BEFORE templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 templates = Jinja2Templates(directory="templates")
 
 # Store active ingestion pipelines and retrievers per session
@@ -91,16 +94,16 @@ async def upload_file(file: UploadFile = File(...)) -> upload_response:
         ingestion_pipelines[session_id] = pipeline
         sessions[session_id] = []
         
-        logger.info(f"Indexed {file.filename} for session {session_id}")
+        logger.info("Indexed %s for session %s", file.filename, session_id)
         
         return upload_response(
             session_id=session_id,
             indexed=True,
-            message=f"Successfully indexed {file.filename}"
+            message="Successfully indexed {}".format(file.filename)
         )
         
     except Exception as e:
-        logger.error(f"Upload error: {str(e)}")
+        logger.error("Upload error: %s", str(e))
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
         raise HTTPException(status_code=500, detail=str(e))
@@ -161,7 +164,7 @@ async def chat(request: chat_request) -> chat_response:
         )
         
     except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
+        logger.error("Chat error: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

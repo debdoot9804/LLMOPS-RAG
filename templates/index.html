@@ -2,9 +2,116 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Hello World</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Doc Chat | RAG Application</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <h1>Hello World</h1>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-brain"></i>
+                <h1>Multi-Doc RAG Chat</h1>
+            </div>
+            <div class="header-info">
+                <span class="session-badge" id="sessionBadge">No Session</span>
+                <button class="new-session-btn" onclick="resetSession()">
+                    <i class="fas fa-plus"></i> New Session
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Sidebar for Upload -->
+            <aside class="sidebar">
+                <div class="upload-section">
+                    <h2><i class="fas fa-upload"></i> Upload Document</h2>
+                    <p class="upload-desc">Upload a PDF, TXT, or DOCX file to start chatting</p>
+                    
+                    <div class="upload-area" id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <p class="upload-text">Drag & drop your file here</p>
+                        <p class="upload-text-or">or</p>
+                        <label for="fileInput" class="file-label">
+                            <i class="fas fa-folder-open"></i> Browse Files
+                        </label>
+                        <input type="file" id="fileInput" accept=".pdf,.txt,.docx" hidden>
+                    </div>
+
+                    <div class="upload-status" id="uploadStatus"></div>
+                    
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
+
+                <div class="stats-section">
+                    <h3><i class="fas fa-chart-bar"></i> Session Stats</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Messages:</span>
+                        <span class="stat-value" id="messageCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Documents:</span>
+                        <span class="stat-value" id="docCount">0</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <main class="chat-container">
+                <!-- Welcome Screen -->
+                <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-content">
+                        <i class="fas fa-comments welcome-icon"></i>
+                        <h2>Welcome to Multi-Doc RAG Chat</h2>
+                        <p>Upload a document to start an intelligent conversation</p>
+                        <div class="features">
+                            <div class="feature-item">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Multi-format Support</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-search"></i>
+                                <span>Smart Retrieval</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-bolt"></i>
+                                <span>Instant Responses</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Messages -->
+                <div class="chat-messages" id="chatMessages" style="display: none;"></div>
+
+                <!-- Chat Input -->
+                <div class="chat-input-container" id="chatInputContainer" style="display: none;">
+                    <div class="chat-input-wrapper">
+                        <textarea 
+                            id="chatInput" 
+                            placeholder="Ask a question about your document..."
+                            rows="1"
+                        ></textarea>
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="input-footer">
+                        <small><i class="fas fa-info-circle"></i> Press Enter to send, Shift+Enter for new line</small>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p>Processing...</p>
+    </div>
+
+    <script src="/static/script.js"></script>
 </body>
 </html>
