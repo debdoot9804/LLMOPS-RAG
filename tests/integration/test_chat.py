@@ -9,8 +9,8 @@ from langchain.schema import Document
 class TestDocumentRetrieval:
     """Test document retrieval works correctly."""
     
-    @patch('multi_doc_chat.src.retriever.get_azure_openai_llm')
-    @patch('multi_doc_chat.src.retriever.get_azure_openai_embeddings')
+    @patch('azure_clients.create_azure_openai_client')
+    @patch('azure_clients.get_embedding_client')
     @patch('multi_doc_chat.src.retriever.FAISS')
     def test_similarity_search_returns_scored_docs(self, mock_faiss, mock_embeddings, mock_llm):
         """Test similarity search adds relevance scores."""
@@ -28,8 +28,8 @@ class TestDocumentRetrieval:
         docs = retriever.get_relevant_documents("query")
         assert docs[0].metadata["similarity_score"] == 0.95
     
-    @patch('multi_doc_chat.src.retriever.get_azure_openai_llm')
-    @patch('multi_doc_chat.src.retriever.get_azure_openai_embeddings')
+    @patch('azure_clients.create_azure_openai_client')
+    @patch('azure_clients.get_embedding_client')
     @patch('multi_doc_chat.src.retriever.FAISS')
     def test_mmr_search_called(self, mock_faiss, mock_embeddings, mock_llm):
         """Test MMR search is invoked."""
@@ -50,7 +50,7 @@ class TestDocumentRetrieval:
 class TestIngestionPipeline:
     """Test document ingestion works."""
     
-    @patch('multi_doc_chat.src.ingestion.get_azure_openai_embeddings')
+    @patch('azure_clients.get_embedding_client')
     @patch('multi_doc_chat.src.ingestion.load_documents')
     @patch('multi_doc_chat.src.ingestion.FAISS')
     def test_documents_are_chunked(self, mock_faiss, mock_load, mock_embeddings):

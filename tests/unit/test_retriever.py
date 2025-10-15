@@ -13,8 +13,8 @@ class TestDocumentFormatting:
         """Test that curly braces don't cause format errors."""
         from multi_doc_chat.src.retriever import DocumentRetriever
         
-        with patch('multi_doc_chat.src.retriever.get_azure_openai_llm'), \
-             patch('multi_doc_chat.src.retriever.get_azure_openai_embeddings'), \
+        with patch('azure_clients.create_azure_openai_client'), \
+             patch('azure_clients.get_embedding_client'), \
              patch('multi_doc_chat.src.retriever.FAISS'):
             retriever = DocumentRetriever("/tmp/test", "test-session")
             
@@ -31,8 +31,8 @@ class TestDocumentFormatting:
         """Test handling integer page numbers."""
         from multi_doc_chat.src.retriever import DocumentRetriever
         
-        with patch('multi_doc_chat.src.retriever.get_azure_openai_llm'), \
-             patch('multi_doc_chat.src.retriever.get_azure_openai_embeddings'), \
+        with patch('azure_clients.create_azure_openai_client'), \
+             patch('azure_clients.get_embedding_client'), \
              patch('multi_doc_chat.src.retriever.FAISS'):
             retriever = DocumentRetriever("/tmp/test", "test-session")
             
@@ -52,8 +52,8 @@ class TestSearchTypes:
         """Test similarity search adds scores."""
         from multi_doc_chat.src.retriever import DocumentRetriever
         
-        with patch('multi_doc_chat.src.retriever.get_azure_openai_llm'), \
-             patch('multi_doc_chat.src.retriever.get_azure_openai_embeddings'), \
+        with patch('azure_clients.create_azure_openai_client'), \
+             patch('azure_clients.get_embedding_client'), \
              patch('multi_doc_chat.src.retriever.FAISS'):
             retriever = DocumentRetriever("/tmp/test", "test-session", search_type="similarity")
             
@@ -70,8 +70,8 @@ class TestSearchTypes:
         """Test MMR search is called correctly."""
         from multi_doc_chat.src.retriever import DocumentRetriever
         
-        with patch('multi_doc_chat.src.retriever.get_azure_openai_llm'), \
-             patch('multi_doc_chat.src.retriever.get_azure_openai_embeddings'), \
+        with patch('azure_clients.create_azure_openai_client'), \
+             patch('azure_clients.get_embedding_client'), \
              patch('multi_doc_chat.src.retriever.FAISS'):
             retriever = DocumentRetriever("/tmp/test", "test-session", search_type="mmr")
             
