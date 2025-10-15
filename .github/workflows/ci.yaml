@@ -24,6 +24,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
+      - name: Install system dependencies (for OCR)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr poppler-utils
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

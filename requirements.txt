@@ -12,3 +12,7 @@ pyyaml
 faiss-cpu
 pandas
 langsmith
+pillow
+pytesseract
+pdf2image
+docx2txt
