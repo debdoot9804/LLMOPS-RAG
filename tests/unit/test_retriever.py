@@ -11,32 +11,27 @@ class TestDocumentFormatting:
     
     def test_format_with_curly_braces(self):
         """Test that curly braces don't cause format errors."""
-        with patch('multi_doc_chat.src.retriever.FAISS'):
+        with patch('multi_doc_chat.src.retriever.FAISS'), \
+             patch('langchain_openai.AzureChatOpenAI', autospec=True):
             from multi_doc_chat.src.retriever import DocumentRetriever
-            
             retriever = DocumentRetriever("/tmp/test", "test-session")
-            
             docs = [Document(
                 page_content="Code: {key: value}",
                 metadata={"source": "test.txt", "page": 1, "similarity_score": 0.9}
             )]
-            
-            # Should not raise error
             result = retriever._format_documents(docs)
             assert "Document 1" in result
     
     def test_format_with_integer_page(self):
         """Test handling integer page numbers."""
-        with patch('multi_doc_chat.src.retriever.FAISS'):
+        with patch('multi_doc_chat.src.retriever.FAISS'), \
+             patch('langchain_openai.AzureChatOpenAI', autospec=True):
             from multi_doc_chat.src.retriever import DocumentRetriever
-            
             retriever = DocumentRetriever("/tmp/test", "test-session")
-            
             docs = [Document(
                 page_content="Content",
                 metadata={"source": "test.pdf", "page": 5, "similarity_score": 0.9}
             )]
-            
             result = retriever._format_documents(docs)
             assert "5" in result
 
@@ -46,33 +41,29 @@ class TestSearchTypes:
     
     def test_similarity_search(self):
         """Test similarity search adds scores."""
-        with patch('multi_doc_chat.src.retriever.FAISS'):
+        with patch('multi_doc_chat.src.retriever.FAISS'), \
+             patch('langchain_openai.AzureChatOpenAI', autospec=True):
             from multi_doc_chat.src.retriever import DocumentRetriever
-            
             retriever = DocumentRetriever("/tmp/test", "test-session", search_type="similarity")
-            
             mock_vector_store = Mock()
             mock_vector_store.similarity_search_with_score.return_value = [
                 (Document(page_content="Test", metadata={"source": "test.pdf"}), 0.95)
             ]
             retriever.vector_store = mock_vector_store
-            
             docs = retriever.get_relevant_documents("query")
             assert docs[0].metadata["similarity_score"] == 0.95
     
     def test_mmr_search(self):
         """Test MMR search is called correctly."""
-        with patch('multi_doc_chat.src.retriever.FAISS'):
+        with patch('multi_doc_chat.src.retriever.FAISS'), \
+             patch('langchain_openai.AzureChatOpenAI', autospec=True):
             from multi_doc_chat.src.retriever import DocumentRetriever
-            
             retriever = DocumentRetriever("/tmp/test", "test-session", search_type="mmr")
-            
             mock_vector_store = Mock()
             mock_vector_store.max_marginal_relevance_search.return_value = [
                 Document(page_content="Test", metadata={"source": "test.pdf"})
             ]
             retriever.vector_store = mock_vector_store
-            
             docs = retriever.get_relevant_documents("query")
             mock_vector_store.max_marginal_relevance_search.assert_called_once()
 
