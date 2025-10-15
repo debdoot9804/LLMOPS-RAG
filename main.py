@@ -64,48 +64,46 @@ def home(request: Request)-> HTMLResponse:
 
 
 @app.post("/upload", response_model=upload_response)
-async def upload_file(file: UploadFile = File(...)) -> upload_response:
-    """Upload and index a document file."""
-    if not file:
-        raise HTTPException(status_code=400, detail="No file uploaded")
-    
+async def upload_file(files: List[UploadFile] = File(...)) -> upload_response:
+    """Upload and index up to 2 document files."""
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+    if len(files) > 2:
+        raise HTTPException(status_code=400, detail="Maximum 2 files allowed per upload")
     session_id = str(uuid.uuid4())[:12]
-    temp_file_path = os.path.join(TEMP_UPLOAD_DIR, f"{session_id}_{file.filename}")
-    
+    temp_file_paths = []
     try:
-        # Save uploaded file
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        # Create pipeline and process document
+        # Save uploaded files
+        for file in files:
+            temp_file_path = os.path.join(TEMP_UPLOAD_DIR, f"{session_id}_{file.filename}")
+            with open(temp_file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            temp_file_paths.append(temp_file_path)
+        # Create pipeline and process documents
         pipeline = DocumentIngestionPipeline(
             chunk_size=1000,
             chunk_overlap=200,
             vector_store_path=VECTOR_STORE_BASE,
             session_id=session_id
         )
-        
         pipeline.process_documents(
-            file_paths=[temp_file_path],
-            metadata={"filename": file.filename}
+            file_paths=temp_file_paths,
+            metadata={"filenames": [file.filename for file in files]}
         )
-        
         # Store session
         ingestion_pipelines[session_id] = pipeline
         sessions[session_id] = []
-        
-        logger.info("Indexed %s for session %s", file.filename, session_id)
-        
+        logger.info("Indexed %s for session %s", ', '.join([file.filename for file in files]), session_id)
         return upload_response(
             session_id=session_id,
             indexed=True,
-            message="Successfully indexed {}".format(file.filename)
+            message="Successfully indexed: " + ', '.join([file.filename for file in files])
         )
-        
     except Exception as e:
         logger.error("Upload error: %s", str(e))
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        for temp_file_path in temp_file_paths:
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -171,5 +169,5 @@ async def chat(request: chat_request) -> chat_response:
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-    
+
 

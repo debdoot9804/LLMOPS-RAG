@@ -22,8 +22,8 @@ const docCountEl = document.getElementById('docCount');
 uploadArea.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) uploadFile(file);
+    const files = Array.from(e.target.files).slice(0, 2); // Limit to 2 files
+    if (files.length > 0) uploadFiles(files);
 });
 
 // Drag and drop
@@ -39,33 +39,31 @@ uploadArea.addEventListener('dragleave', () => {
 uploadArea.addEventListener('drop', (e) => {
     e.preventDefault();
     uploadArea.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (file) uploadFile(file);
+    const files = Array.from(e.dataTransfer.files).slice(0, 2); // Limit to 2 files
+    if (files.length > 0) uploadFiles(files);
 });
 
-// Upload file function
-async function uploadFile(file) {
+// Upload multiple files function
+async function uploadFiles(files) {
     const formData = new FormData();
-    formData.append('file', file);
-    
+    files.forEach((file, idx) => {
+        formData.append('files', file);
+    });
     showLoading(true);
-    showUploadStatus('Uploading and indexing document...', 'info');
-    
+    showUploadStatus('Uploading and indexing documents...', 'info');
     try {
         const response = await fetch('/upload', {
             method: 'POST',
             body: formData
         });
-        
         const data = await response.json();
-        
         if (response.ok && data.indexed) {
             currentSessionId = data.session_id;
             updateSessionBadge(currentSessionId);
             showUploadStatus(data.message, 'success');
-            displayFileInfo(file.name);
+            displayFileInfo(files.map(f => f.name).join(', '));
             enableChat();
-            updateStats(1, 0);
+            updateStats(files.length, 0);
         } else {
             showUploadStatus('Error uploading file: ' + (data.detail || 'Unknown error'), 'error');
         }
