@@ -4,9 +4,37 @@ PyTest configuration file for LLMOPS_RAG tests.
 import pytest
 import sys
 import os
+from unittest.mock import Mock, MagicMock
 
 # Add project root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+
+# Mock Azure clients BEFORE any imports
+sys.modules['azure_clients'] = MagicMock()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_azure_clients():
+    """Mock Azure OpenAI clients for all tests."""
+    import azure_clients
+    
+    # Create mock clients
+    mock_llm = Mock()
+    mock_llm.invoke.return_value = Mock(content="Test response")
+    
+    mock_embeddings = Mock()
+    mock_embeddings.embed_documents.return_value = [[0.1] * 1536]
+    mock_embeddings.embed_query.return_value = [0.1] * 1536
+    
+    # Set up the mocked functions
+    azure_clients.create_azure_openai_client = Mock(return_value=mock_llm)
+    azure_clients.get_embedding_client = Mock(return_value=mock_embeddings)
+    
+    return {
+        'llm': mock_llm,
+        'embeddings': mock_embeddings
+    }
 
 
 @pytest.fixture(scope="session")

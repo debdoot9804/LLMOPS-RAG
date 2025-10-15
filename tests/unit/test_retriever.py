@@ -2,16 +2,14 @@
 Unit tests for DocumentRetriever - Simple focused tests.
 """
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from langchain.schema import Document
 
 
-@patch('azure_clients.create_azure_openai_client', return_value=Mock())
-@patch('azure_clients.get_embedding_client', return_value=Mock())
 class TestDocumentFormatting:
     """Test document formatting logic."""
     
-    def test_format_with_curly_braces(self, mock_embeddings, mock_llm):
+    def test_format_with_curly_braces(self):
         """Test that curly braces don't cause format errors."""
         with patch('multi_doc_chat.src.retriever.FAISS'):
             from multi_doc_chat.src.retriever import DocumentRetriever
@@ -27,7 +25,7 @@ class TestDocumentFormatting:
             result = retriever._format_documents(docs)
             assert "Document 1" in result
     
-    def test_format_with_integer_page(self, mock_embeddings, mock_llm):
+    def test_format_with_integer_page(self):
         """Test handling integer page numbers."""
         with patch('multi_doc_chat.src.retriever.FAISS'):
             from multi_doc_chat.src.retriever import DocumentRetriever
@@ -43,12 +41,10 @@ class TestDocumentFormatting:
             assert "5" in result
 
 
-@patch('azure_clients.create_azure_openai_client', return_value=Mock())
-@patch('azure_clients.get_embedding_client', return_value=Mock())
 class TestSearchTypes:
     """Test different search strategies."""
     
-    def test_similarity_search(self, mock_embeddings, mock_llm):
+    def test_similarity_search(self):
         """Test similarity search adds scores."""
         with patch('multi_doc_chat.src.retriever.FAISS'):
             from multi_doc_chat.src.retriever import DocumentRetriever
@@ -64,7 +60,7 @@ class TestSearchTypes:
             docs = retriever.get_relevant_documents("query")
             assert docs[0].metadata["similarity_score"] == 0.95
     
-    def test_mmr_search(self, mock_embeddings, mock_llm):
+    def test_mmr_search(self):
         """Test MMR search is called correctly."""
         with patch('multi_doc_chat.src.retriever.FAISS'):
             from multi_doc_chat.src.retriever import DocumentRetriever
@@ -79,3 +75,4 @@ class TestSearchTypes:
             
             docs = retriever.get_relevant_documents("query")
             mock_vector_store.max_marginal_relevance_search.assert_called_once()
+

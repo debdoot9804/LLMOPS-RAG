@@ -6,11 +6,10 @@ from unittest.mock import Mock, patch
 from langchain.schema import Document
 
 
-@patch('azure_clients.get_embedding_client', return_value=Mock())
 class TestDocumentValidation:
     """Test input validation."""
     
-    def test_empty_documents_raises_error(self, mock_embeddings):
+    def test_empty_documents_raises_error(self):
         """Test that empty document list raises error."""
         from multi_doc_chat.src.ingestion import DocumentIngestionPipeline
         
@@ -25,7 +24,7 @@ class TestDocumentValidation:
             with pytest.raises(ValueError, match="No valid documents"):
                 pipeline.process_documents(["test.txt"], {})
     
-    def test_no_chunks_raises_error(self, mock_embeddings):
+    def test_no_chunks_raises_error(self):
         """Test that documents with no chunks raise error."""
         from multi_doc_chat.src.ingestion import DocumentIngestionPipeline
         
@@ -44,12 +43,11 @@ class TestDocumentValidation:
                 pipeline.process_documents(["test.txt"], {})
 
 
-@patch('azure_clients.get_embedding_client', return_value=Mock())
 class TestDocumentLoading:
     """Test document loader."""
     
     @pytest.mark.skip(reason="Loader has issues with local variable 'docs' - needs fix")
-    def test_load_text_file(self, mock_embeddings, tmp_path):
+    def test_load_text_file(self, tmp_path):
         """Test loading a simple text file."""
         from multi_doc_chat.utils.loaders import load_documents
         
@@ -61,7 +59,7 @@ class TestDocumentLoading:
         assert len(docs) > 0
         assert "Hello world" in docs[0].page_content
     
-    def test_unsupported_file_skipped(self, mock_embeddings, tmp_path):
+    def test_unsupported_file_skipped(self, tmp_path):
         """Test that unsupported files are skipped."""
         from multi_doc_chat.utils.loaders import load_documents
         
